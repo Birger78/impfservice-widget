@@ -38,4 +38,4 @@ Scriptable Widget für die Prüfung auf vorhandene Impftermine des Patientenserv
 *Termine vorhanden: Widget öffnet die Terminbuchungsseite*
 
 ![Mitteilung](img/IMG_D4653FDB49CD-1.jpeg)<br/>
-*Mitteilung: Tab auf die Mitteilung öffnet Terminbuchungsseite*
+*Mitteilung: Tap auf die Mitteilung öffnet Terminbuchungsseite*
