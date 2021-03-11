@@ -9,8 +9,6 @@ const vaccineListUrl = baseUrl + '/assets/static/its/vaccination-list.json'
 const requestSlotUrl = baseUrl + '/rest/suche/termincheck'
 const serviceUrl = baseUrl + '/impftermine/service'
 
-const defaultRequestHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }
-
 const timeFont = Font.boldSystemFont(12)
 const titleFont = Font.boldSystemFont(18)
 const titleFontB = Font.boldSystemFont(14)
@@ -21,25 +19,16 @@ const textColor = Color.white()
 const dateFormatter = new DateFormatter()
 dateFormatter.dateFormat = 'd. MMMM YYYY, HH:mm:ss'
 
-const makeRequest = (url) => {
-  let req = new Request(url)
-  req.headers = defaultRequestHeaders
-  return req
-}
-
 const getData = async (zip) => {
-  let lstMs = await makeRequest(vaccineListUrl).loadJSON()
+  let lstMs = await new Request(vaccineListUrl).loadJSON()
   let lstMString = lstMs.map(item => item.qualification).join(',')
-  return await makeRequest(
-    `${requestSlotUrl}?plz=${zip}&leistungsmerkmale=${lstMString}`).loadJSON()
-}
-
-const showError = (message) => {
-  const errorSheet = new Alert()
-  errorSheet.title = 'Fehler'
-  errorSheet.message = message
-  errorSheet.addAction('OK')
-  errorSheet.present()
+  const wv = new WebView()
+  let url = `${serviceUrl}?plz=${zip}`
+  await wv.loadURL(url)
+  await wv.evaluateJavaScript('setTimeout(function(){completion(null)}, 3000)', true)
+  await wv.loadURL(`${requestSlotUrl}?plz=${zip}&leistungsmerkmale=${lstMString}`)
+  let htmlRes = (await wv.getHTML()).replace(/(<([^>]+)>)/gi, '')
+  return JSON.parse(htmlRes)
 }
 
 const createWidget = async () => {
@@ -47,11 +36,13 @@ const createWidget = async () => {
   let lastCheck = null
   let hasSlots = false
   let storedData = getStoredData()
-  let zip = args.widgetParameter || ''
+  let zip = args.widgetParameter || 48155
+  let debug = ''
 
   if (storedData && zip) {
     lastCheck = await getData(zip)
-    hasSlots = !!lastCheck.termineVorhanden
+    debug = JSON.stringify(lastCheck)
+    hasSlots = lastCheck.termineVorhanden
   }
 
   let widget = new ListWidget()
@@ -83,7 +74,7 @@ const createWidget = async () => {
   let stack = widget.addStack()
   stack.layoutVertically()
 
-  if (lastCheck !== null) {
+  if (lastCheck !== null && hasSlots !== undefined) {
     createText(stack, dateFormatter.string(new Date()), timeFont, 5)
     createText(stack, 'Impftermin-Service')
     createText(stack, 'PLZ: ' + storedData.zip, titleFont, 5)
@@ -92,7 +83,8 @@ const createWidget = async () => {
       createText(stack, 'Jetzt Termine buchen!', titleFontB, 0)
     }
   } else {
-    createText(stack, 'Verfügbarkeit konnte nicht geprüft werden.')
+    createText(stack, 'Verfügbarkeit konnte nicht geprüft werden. ', timeFont)
+    createText(stack, 'Antwort: ' + debug, timeFont)
   }
 
   return widget
@@ -125,11 +117,12 @@ const clearStoredData = () => {
 
 const run = async () => {
   let widget = await createWidget()
-  if (!config.runsInWidget) {
-    await widget.presentSmall()
+  if (config.runsInWidget) {
+    Script.setWidget(widget)
+    Script.complete()
+  } else {
+    widget.presentLarge()
   }
-  Script.setWidget(widget)
-  Script.complete()
 }
 
 await run()
