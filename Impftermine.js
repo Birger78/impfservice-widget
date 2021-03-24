@@ -4,10 +4,7 @@
 
 // author: Birger Stöckelmann 2021 <stoeckelmann@gmail.com>
 
-const baseUrl = 'https://100-iz.impfterminservice.de'
-const vaccineListUrl = baseUrl + '/assets/static/its/vaccination-list.json'
-const requestSlotUrl = baseUrl + '/rest/suche/termincheck'
-const serviceUrl = baseUrl + '/impftermine/service'
+const centerList = 'https://www.impfterminservice.de/assets/static/impfzentren.json'
 
 const timeFont = Font.boldSystemFont(12)
 const titleFont = Font.boldSystemFont(18)
@@ -19,7 +16,27 @@ const textColor = Color.white()
 const dateFormatter = new DateFormatter()
 dateFormatter.dateFormat = 'd. MMMM YYYY, HH:mm:ss'
 
-const getData = async (zip) => {
+const getBaseUrl = async (zip) => {
+  // load centers
+  let centers = await new Request(centerList).loadJSON()
+  for (prop in centers) {
+    let center = centers[prop].find(item => Number(item.PLZ) === Number(zip))
+    if (center) {
+      return center.URL
+    }
+  }
+  return false
+}
+
+const getUrls = (baseUrl) => {
+  return {
+    vaccineListUrl: baseUrl + '/assets/static/its/vaccination-list.json',
+    requestSlotUrl: baseUrl + '/rest/suche/termincheck',
+    serviceUrl: baseUrl + '/impftermine/service'
+  }
+}
+
+const getData = async (zip, baseUrl) => {
 
   let lstMString = ''
   let jsonResponse = {}
@@ -28,14 +45,14 @@ const getData = async (zip) => {
 
     // load base site
     const wv = new WebView()
-    let url = `${serviceUrl}?plz=${zip}`
+    let url = `${getUrls(baseUrl).serviceUrl}?plz=${zip}`
     await wv.loadURL(url)
 
     // html result parsing
     let html = await wv.getHTML()
 
-    if(html.includes('Not found')) {
-      return { state: 'notFound'}
+    if (html.includes('Not found')) {
+      return { state: 'notFound' }
     } else if (html.includes('Wartungsarbeiten')) {// maintenance mode?
       return { state: 'maintenance' }
     } else if (html.includes('Derzeit keine Onlinebuchung von Impfterminen')) {
@@ -44,12 +61,12 @@ const getData = async (zip) => {
       return { state: 'waitingRoom' }
     }
 
-    let lstMs = await new Request(vaccineListUrl).loadJSON()
+    let lstMs = await new Request(getUrls(baseUrl).vaccineListUrl).loadJSON()
     lstMString = lstMs.map(item => item.qualification).join(',')
 
     // request slots available
     await wv.evaluateJavaScript('setTimeout(function(){completion(null)}, 3000)', true)
-    await wv.loadURL(`${requestSlotUrl}?plz=${zip}&leistungsmerkmale=${lstMString}`)
+    await wv.loadURL(`${getUrls(baseUrl).requestSlotUrl}?plz=${zip}&leistungsmerkmale=${lstMString}`)
     html = await wv.getHTML()
 
     // remove tags
@@ -70,9 +87,10 @@ const createWidget = async () => {
 
   let hasSlots = null
   let storedData = getStoredData()
-  let zip = args.widgetParameter || 48155
+  let zip = args.widgetParameter
 
-  let dataRes = await getData(zip)
+  let baseUrl = await getBaseUrl(zip)
+  let dataRes = await getData(zip, baseUrl)
 
   if (dataRes.state === 'ok' && dataRes.res.hasOwnProperty('termineVorhanden')) {
     hasSlots = dataRes.res.termineVorhanden
@@ -92,7 +110,7 @@ const createWidget = async () => {
     widget.backgroundColor = Color.red()
   }
 
-  widget.url = `${serviceUrl}?plz=${zip}`
+  widget.url = `${getUrls(baseUrl).serviceUrl}?plz=${zip}`
 
   // notification if slots are now available
   if (hasSlots && !storedData.lastSuccess) {
