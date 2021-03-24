@@ -36,6 +36,8 @@ const getData = async (zip) => {
     // maintenance mode?
     if (html.includes('Wartungsarbeiten')) {
       return { state: 'maintenance' }
+    } else if (html.includes('Derzeit keine Onlinebuchung von Impfterminen')) {
+      return { state: 'offline' }
     } else if (html.includes('Warteraum')) { // virtual waiting room?
       return { state: 'waitingRoom' }
     }
@@ -82,7 +84,7 @@ const createWidget = async () => {
 
   widget.backgroundColor = hasSlots ? Color.green() : Color.red()
 
-  if (dataRes.state === 'maintenance' || dataRes.state === 'waitingRoom') {
+  if (['maintenance', 'waitingRoom', 'offline'].includes(dataRes.state)) {
     widget.backgroundColor = Color.orange()
   } else if (dataRes.state === 'error') {
     widget.backgroundColor = Color.red()
@@ -108,7 +110,9 @@ const createWidget = async () => {
   createText(stack, dateFormatter.string(new Date()), timeFont, 5)
   createText(stack, 'Impftermin-Service')
 
-  if (dataRes.state === 'maintenance') {
+  if (dataRes.state === 'offline') {
+    createText(stack, 'Derzeit keine Online-Buchung', titleFontB, 5)
+  } else if (dataRes.state === 'maintenance') {
     createText(stack, 'Wartungsarbeiten', titleFontB, 5)
   } else if (dataRes.state === 'waitingRoom') {
     createText(stack, 'Warteraum', titleFontB, 5)
